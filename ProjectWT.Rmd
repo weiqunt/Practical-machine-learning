@@ -1,0 +1,81 @@
+---
+title: "Practical Machine Learning Project"
+author: "Weiqun Tong"
+date: "September 9, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Project introduction
+
+In this project, my goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants as Train data, then use the appropriate cross validation method to select a good model. The Test data will be used to validate the last chosen model. 
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>.
+
+## Data exploring
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+rm(list=ls())
+library(caret);library(rpart);library(rpart.plot);library(RColorBrewer);library(rattle);library(randomForest);library(gbm)
+
+set.seed(12345)
+TrainDT <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"),header=TRUE)
+dim(TrainDT)
+#str(TrainDT)
+TestDT <- read.csv(url("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"),header=TRUE)
+dim(TestDT)
+#str(TestDT)
+
+#Check the missing values in each column and find many columns have >19000 missings, which can be deleted, also delete the first 7 variables because no use
+MisColChkTrain <- (colSums(is.na(TrainDT) |TrainDT==""))
+CleanedTrainDT <- TrainDT[, -which(MisColChkTrain>19000)]
+CleanedTrainDT <-CleanedTrainDT[,-c(1:7)]
+dim(CleanedTrainDT)
+#Check the test data and will remove all missing variables, also delete the first 7 variables because no use
+MisColChkTest <- (colSums(is.na(TestDT) |TestDT==""))
+CleanedTestDT <- TestDT[, -which(MisColChkTest==20)]
+CleanedTestDT <-CleanedTestDT[,-c(1:7)]
+dim(CleanedTestDT)
+```
+
+## Model selection 
+
+You can also embed plots, for example:
+
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+# Create partition of the cleaned traning data set 
+PartitionDT <- createDataPartition(CleanedTrainDT$classe, p=0.7, list=FALSE)
+Train1 <- CleanedTrainDT[PartitionDT,]
+Test1 <- CleanedTrainDT[-PartitionDT,]
+dim(Train1)
+dim(Test1)
+
+#Classification tree modeling
+TrainControl <- trainControl(method="cv", number=5)
+model_CT <- train(classe~., data=Train1, method="rpart", trControl=TrainControl)
+fancyRpartPlot(model_CT$finalModel)
+
+TrainPred <- predict(model_CT,newdata=Test1)
+CT <- confusionMatrix(Test1$classe,TrainPred)
+CT$table
+CT$overall[1]
+
+# Random forests modeling
+model_RF <- train(classe~., data=Train1, method="rf", trControl=TrainControl, verbose=FALSE)
+print(model_RF)
+plot(model_RF,main="Random forest model accuracy by number of predictors")
+TrainPred <- predict(model_RF,newdata=Test1)
+RF <- confusionMatrix(Test1$classe,TrainPred)
+RF$table
+RF$overall[1]
+
+```
+## Applying random forests model to the validation data
+```{r, message=FALSE, warning=FALSE, fig.align='center'}
+result <- predict(model_RF, newdata=CleanedTestDT)
+result
+```
+## Conclusion
+We can notice that the accuracy of Classification tree modeling is not good enough(about 49%).This means that the outcome class will not be predicted very well by the other predictors. While, with random forest, we reach an accuracy of 99%. I also tried with Gradient boosting. The code and results are not shown here because of limited space. But all in all, the random forest is the best predition method. Thus, random forest model was use for the validation data for the prediction. 
